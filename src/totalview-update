@@ -10,7 +10,8 @@ import ConfigParser
 
 import rrdtool
 import htcondor
-
+import classad
+g_startup = int(time.time())
 
 def parse_args():
     parser = optparse.OptionParser()
@@ -44,8 +45,20 @@ def parse_args():
 
     return opts, args
 
+def update_rrd(fname, line):
+    try:
+        rrdtool.update(fname, line)
+    except rrdtool.error as e:
+        print e
+        print fname
+        print line
+
 def query_factory(coll, output):
-    entries = coll.query(htcondor.AdTypes.Any, 'MyType=?="glidefactory" && GLIDEIN_CMSSite isnt undefined',['GLIDEIN_CMSSite', 'GLIDEIN_MaxMemMBs', 'GLIDEIN_Max_Walltime'])
+    try:
+        entries = coll.query(htcondor.AdTypes.Any, 'MyType=?="glidefactory" && GLIDEIN_CMSSite isnt undefined',['GLIDEIN_CMSSite', 'GLIDEIN_MaxMemMBs', 'GLIDEIN_Max_Walltime'])
+    except IOError as er:
+        print 'Failed to query factory. Error: %s' % er
+        return
     for entry in entries:
         #So far it requires to -30minutes from Walltime request. TODO
         dataAppend = {'MaxMemMB': entry['GLIDEIN_MaxMemMBs'], 'MaxWallTime': int(entry['GLIDEIN_Max_Walltime']/60)}
@@ -75,6 +88,16 @@ def summarize_schedds(schedds_info, schedd_ads):
         schedds_info[name]['TotalIdleJobs'] = ad['TotalIdleJobs']
         schedds_info[name]['TotalHeldJobs'] = ad['TotalHeldJobs']
         schedds_info[name]['MaxJobsRunning'] = ad['MaxJobsRunning']
+        schedds_info[name]['PercentageUse'] = 0 if ad['TotalRunningJobs'] == 0 else int((ad['TotalRunningJobs']*100)/ad['MaxJobsRunning'])
+        schedds_info[name]['Status'] = 'UNKNOWN'
+        schedd_status = "UNKNOWN"
+        try:
+            status_expr = classad.ExprTree('ifThenElse(IsOK is undefined, "UNKNOWN", ifThenElse(IsOK, "OK", ifThenElse(IsWarning, "WARNING", "CRITICAL")))');
+            schedd_status = status_expr.eval(ad)
+        except:
+            print 'Strange. wrong expression...', ad
+            continue
+        schedds_info[name]['Status'] = schedd_status
 
 def write_schedd_info(basedir, schedds_info, fact_info):
     now = int(time.time())
@@ -98,7 +121,7 @@ def write_schedd_info(basedir, schedds_info, fact_info):
                 "RRA:MAX:0.5:20:2000",
                 "RRA:AVERAGE:0.5:20:2000",
             )
-        rrdtool.update(fname, "N:%d:%d" % (schedd_dict["TotalRunningJobs"], schedd_dict["TotalIdleJobs"]))
+        update_rrd(fname, "%d:%d:%d" % (g_startup, schedd_dict["TotalRunningJobs"], schedd_dict["TotalIdleJobs"]))
     drop_obj(fact_info, basedir, 'totals.json')
     return
 
@@ -183,7 +206,7 @@ def write_rrds(totals, sites, output):
             "RRA:MAX:0.5:20:2000",
             "RRA:AVERAGE:0.5:20:2000",
         )
-    rrdtool.update(fname, "N:%d:%d" % (running, idle))
+    update_rrd(fname, "%d:%d:%d" % (g_startup, running, idle))
 
     for site, site_dict in sites['Summary'].items():
         fname = str(os.path.join(output, "%s.rrd" % site))
@@ -197,7 +220,7 @@ def write_rrds(totals, sites, output):
                 "RRA:MAX:0.5:20:2000",
                 "RRA:AVERAGE:0.5:20:2000",
             )   
-        rrdtool.update(fname, "N:%d:%d" % (site_dict["Running"], site_dict["MatchingIdle"]))
+        update_rrd(fname, "%d:%d:%d" % (g_startup, site_dict["Running"], site_dict["MatchingIdle"]))
 
     #Create fake empty.rrd for sites which have no data.
     fname = str(os.path.join(output, "empty.rrd"))
@@ -211,7 +234,7 @@ def write_rrds(totals, sites, output):
                 "RRA:MAX:0.5:20:2000",
                 "RRA:AVERAGE:0.5:20:2000",
             )
-        rrdtool.update(fname, "N:0:0")
+        update_rrd(fname, "%d:0:0" % g_startup)
 
 def main():
     opts, args = parse_args()
@@ -229,7 +252,7 @@ def main():
         query_factory(collF, fact_out)
     #Get schedulers information
     schedds_info = {}
-    schedd_ads = coll.query(htcondor.AdTypes.Schedd, 'True',['Name', 'CMSGWMS_Type', 'Machine', 'TotalRunningJobs', 'TotalIdleJobs', 'TotalHeldJobs', 'MaxJobsRunning'])
+    schedd_ads = coll.query(htcondor.AdTypes.Schedd, 'True',['Name', 'CMSGWMS_Type', 'Machine', 'TotalRunningJobs', 'TotalIdleJobs', 'TotalHeldJobs', 'MaxJobsRunning', 'IsOK', 'isWarning', 'isCritical'])
     if schedd_ads:
         summarize_schedds(schedds_info, schedd_ads)
     write_schedd_info(opts.scheddview, schedds_info, fact_out)
