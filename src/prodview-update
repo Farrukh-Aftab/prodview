@@ -10,6 +10,8 @@ import ConfigParser
 import rrdtool
 import htcondor
 
+import prodview.locking
+
 g_startup = int(time.time())
 
 def parse_args():
@@ -37,6 +39,8 @@ def parse_args():
         opts.pool = cp.get("htcondor", "pool")
     if not opts.output and cp.has_option("prodview", "basedir"):
         opts.output = cp.get("prodview", "basedir")
+
+    prodview.locking.exclusive_lock(cp)
 
     return opts, args
 

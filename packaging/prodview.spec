@@ -1,6 +1,6 @@
 
 Name:		prodview
-Version:	0.5
+Version:	0.6
 Release:	1%{?dist}
 Summary:	A simple monitoring page for CMS production
 
@@ -42,7 +42,8 @@ python setup.py build
 %install
 rm -rf %{buildroot}
 python setup.py install -O1 --root=$RPM_BUILD_ROOT --record=INSTALLED_FILES
-mkdir -p $RPM_BUILD_ROOT/var/www/prodview
+install -d $RPM_BUILD_ROOT/var/www/prodview
+install -d $RPM_BUILD_ROOT/var/lock/prodview
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -54,9 +55,12 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %_sysconfdir/httpd/conf.d/prodview-httpd.conf
 %verify(not group user) %config(noreplace) %_sysconfdir/cron.d/prodview.cron
 %attr(0755,apache,apache) %dir /var/www/prodview
-
+%verify(not group user) %attr(0755,apache,apache) /var/lock/prodview
 
 %changelog
+* Sat Aug 29 2015 Brian Bockelman <bbockelm@cse.unl.edu> - 0.6-1
+- Use POSIX locks to prevent multiple crons from running.
+
 * Tue Aug 04 2015 Brian Bockelman <bbockelm@cse.unl.edu> - 0.5-1
 - Cleanup file leaks.
 

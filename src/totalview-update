@@ -43,6 +43,8 @@ def parse_args():
     opts.analysiscrab2view = cp.get("analysiscrab2view", "basedir")
     opts.scheddview = cp.get("scheddview", "basedir")
 
+    prodview.locking.exclusive_lock(cp)
+
     return opts, args
 
 def update_rrd(fname, line):
