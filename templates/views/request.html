@@ -141,6 +141,39 @@
             dashboard.bind([control], [table]);
             dashboard.draw(table_data);
         }
+        function summarizeEntries(entries) {
+            var largest_wall_entry = 0;
+            var largest_wall_entry_html = '';
+            var largest_mem_entry = 0;
+            var largest_mem_entry_html = '';
+            for (i = 0; i< entries.length; i++) {
+                var entry_html = 'Max Time ' + int(entries[i]['MaxWallTime']/60.0) + 'hrs, max memory ' + entries[i]['MaxMemMB'] + 'MBs <br/>';
+                if (entries[i]['MaxWallTime'] > entries[largest_wall_entry]['MaxWallTime']) {
+                    largest_wall_entry = i;
+                    largest_wall_entry_html = entry_html;
+                } else if ((entries[i]['MaxWallTime'] == entries[largest_wall_entry]['MaxWallTime']) && (entries[i]['MaxMemMB'] > entries[largest_wall_entry]['MaxMemMB'])) {
+                    largest_wall_entry = i;
+                    largest_wall_entry_html = entry_html;
+                }
+                if (entries[i]['MaxMemMB'] > entries[largest_wall_entry]['MaxMemMB']) {
+                    largest_wall_entry = i;
+                    largest_wall_entry_html = entry_html;
+                } else if ((entries[i]['MaxMemMB'] == entries[largest_wall_entry]['MaxMemMB']) && (entries[i]['MaxWallTime'] > entries[largest_wall_entry]['MaxWallTime'])) {
+                    largest_wall_entry = i;
+                    largest_wall_entry_html = entry_html;
+                }
+            }
+            if (entries.length > 0) {
+                var site_html = '<br/>Largest entries:<br/>';
+                site_html += largest_wall_entry;
+                if (largest_wall_entry != largest_mem_entry)
+                {
+                    site_html += largest_mem_entry;
+                }
+                return site_html;
+            }
+            return '<br/>ERROR: No entries in factory!<br/>'
+        }
         function gotSiteSummary(data, currentview) {
 
             var table_data = new google.visualization.DataTable();
@@ -157,17 +190,10 @@
                     var site_img = '<img src="'+ currentview +'graphs/$request/' + site_key + '"/>';
                     var site_html = '<a href="' + currentview + site_key + '"/>' + site_key + '</a>';
                     if (site_key in factory_data){
-                       var entries = factory_data[site_key];
-                       site_html += '<table border="1"><tr><th>Num</th><th>MaxWallTime</th><th>MaxMemory</th></tr>'
-                       for (i = 0; i< entries.length; i++){
-                           site_html += '<tr><td>'+ i + '</td>';
-                           site_html += '<td>' + entries[i]['MaxWallTime'] + '</td>';
-                           site_html += '<td>' + entries[i]['MaxMemMB'] + '</td></tr>';
-                       }
-                       site_html += '</table><br/>';
+                       site_html += summarizeEntries(factory_data[site_key]);
                     }
                     else {
-                       site_html += "PROBLEM. Not in the factory.";
+                       site_html += "<br/>ERROR: Not in the factory.<br/>";
                     }
                     table_data.addRow([site_html, site.Running, site.MatchingIdle, site.RequestCount, site_img]);
                 }
@@ -178,18 +204,11 @@
                     var site_img = '<img src="'+ currentview +'graphs/$request/' + site_key + '"/>';
                     var site_html = '<a href="' + currentview + site_key + '"/>' + site_key + '</a>';
                     if (site_key in factory_data){
-                        var entries = factory_data[site_key];
-                        site_html += '<table border="1"><tr><th>Num</th><th>MaxWallTime</th><th>MaxMemory</th></tr>'
-                        for (i = 0; i< entries.length; i++){
-                            site_html += '<tr><td>'+ i + '</td>';
-                            site_html += '<td>' + entries[i]['MaxWallTime'] + '</td>';
-                            site_html += '<td>' + entries[i]['MaxMemMB'] + '</td></tr>';
-                        }
-                        site_html += '</table><br/>';
+                        site_html += summarizeEntries(factory_data[site_key]);
                     }
                     else {
-                    site_html += "PROBLEM. Not in the factory.";
-		    }
+                        site_html += "<br/>ERROR: Not in the factory.<br/>";
+                    }
                     table_data.addRow([site_html, site.Running, site.MatchingIdle, site_img]);
                 }
             }

@@ -212,8 +212,6 @@ def write_rrds(totals, sites, output):
                 "DS:Running:GAUGE:360:U:U",
                 "DS:MatchingIdle:GAUGE:360:U:U",
                 "RRA:AVERAGE:0.5:1:1000",
-                "RRA:MIN:0.5:20:2000",
-                "RRA:MAX:0.5:20:2000",
                 "RRA:AVERAGE:0.5:20:2000",
             )   
         update_rrd(fname, "%d:%d:%d" % (g_startup, site_dict["Running"], site_dict["MatchingIdle"]))
