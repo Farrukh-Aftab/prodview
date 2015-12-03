@@ -66,6 +66,8 @@ totals_json = static_file_server("totals.json")
 _summary_json_re = re.compile(r'^/*json/summary$')
 summary_json = static_file_server("summary.json")
 
+_max_used_json_re = re.compile(r'^/*json/maxused$')
+max_used = static_file_server("maxused.json")
 
 _site_summary_json_re = re.compile(r'^/*json/site_summary$')
 site_summary_json = static_file_server("site_summary.json")
@@ -158,6 +160,43 @@ def request_starvation_graph(environ, start_response):
 
     return [ rrd.request_starvation(_cp.get(_view, "basedir"), interval, request) ]
 
+def validate_request(path, request_re):
+        m = request_re.match(path)
+        grouped = m.groups()
+        site = grouped[0]
+        request = None if not grouped[1] else grouped[1]
+        interval = 'daily' if not grouped[2] else grouped[2]
+        return site, request, interval
+
+_request_held_graph_re = re.compile(r'^/*graphs/+(T[0-9]_[A-Z]{2,2}_[-_A-Za-z0-9]+)/?([-_A-Za-z0-9]+)?/held/?(hourly|weekly|daily|monthly|yearly)?/?$')
+def request_held_graph(environ, start_response):
+    status = '200 OK'
+    headers = [('Content-type', 'image/png'),
+               ('Cache-Control', 'max-age=60, public')]
+    start_response(status, headers)
+    path = environ.get('PATH_INFO', '')
+    site, request, interval = validate_request(path, _request_held_graph_re)
+    return [ rrd.request_held(_cp.get(_view, "basedir"), interval, request, site) ]
+
+_request_idle_graph_re = re.compile(r'^/*graphs/+(T[0-9]_[A-Z]{2,2}_[-_A-Za-z0-9]+)/?([-_A-Za-z0-9]+)?/idle/?(hourly|weekly|daily|monthly|yearly)?/?$')
+def request_idle_graph(environ, start_response):
+    status = '200 OK'
+    headers = [('Content-type', 'image/png'),
+               ('Cache-Control', 'max-age=60, public')]
+    start_response(status, headers)
+    path = environ.get('PATH_INFO', '')
+    site, request, interval = validate_request(path, _request_idle_graph_re)
+    return [ rrd.request_idle(_cp.get(_view, "basedir"), interval, request, site) ]
+
+_request_joint_graph_re = re.compile(r'^/*graphs/+(T[0-9]_[A-Z]{2,2}_[-_A-Za-z0-9]+)/?([-_A-Za-z0-9]+)?/joint/?(hourly|weekly|daily|monthly|yearly)?/?$')
+def request_joint_graph(environ, start_response):
+    status = '200 OK'
+    headers = [('Content-type', 'image/png'),
+               ('Cache-Control', 'max-age=60, public')]
+    start_response(status, headers)
+    path = environ.get('PATH_INFO', '')
+    site, request, interval = validate_request(path, _request_joint_graph_re)
+    return [ rrd.request_joint(_cp.get(_view, "basedir"), interval, request, site) ]
 
 _subtask_graph_re = re.compile(r'^/*graphs/+([-_A-Za-z0-9]+)/+([-_A-Za-z0-9]+)/?(hourly|weekly|daily|monthly|yearly)?/?$')
 def subtask_graph(environ, start_response):
@@ -192,6 +231,39 @@ def site_graph(environ, start_response):
         interval=m.groups()[1]
 
     return [ rrd.site(_cp.get(_view, "basedir"), interval, site) ]
+
+_site_graph_util_re = re.compile(r'^/*graphs/(T[0-9]_[A-Z]{2,2}_[-_A-Za-z0-9]+)/utilization/?(hourly|weekly|daily|monthly|yearly)?/?$')
+def site_graph_util(environ, start_response):
+    status = '200 OK'
+    headers = [('Content-type', 'image/png'),
+               ('Cache-Control', 'max-age=60, public')]
+    start_response(status, headers)
+ 
+    path = environ.get('PATH_INFO', '')
+    m = _site_graph_util_re.match(path)
+    interval = "daily"
+    site = m.groups()[0]
+    if m.groups()[1]:
+         interval=m.groups()[1]
+ 
+    return [ rrd.site_util(_cp.get(_view, "basedir"), interval, site) ]
+
+_pilot_graph_re = re.compile(r'^/*graphs/(T[0-9]_[A-Z]{2,2}_[-_A-Za-z0-9]+)/(static|partitionable|full)/?(hourly|weekly|daily|monthly|yearly)?/?$')
+def pilot_graph_use(environ, start_response):
+    status = '200 OK'
+    headers = [('Content-type', 'image/png'),
+               ('Cache-Control', 'max-age=60, public')]
+    start_response(status, headers)
+ 
+    path = environ.get('PATH_INFO', '')
+    m = _pilot_graph_re.match(path)
+    interval = "daily"
+    site = m.groups()[0]
+    gType = m.groups()[1]
+    if m.groups()[2]:
+        interval=m.groups()[2]
+
+    return [ rrd.pilot_graph(_cp.get(_view, "basedir"), interval, site, gType) ]
 
 
 _request_site_graph_re = re.compile(r'^/*graphs/([-_A-Za-z0-9]+)/(T[0-9]_[A-Z]{2,2}_[-_A-Za-z0-9]+)/?(hourly|weekly|daily|monthly|yearly)?/?$')
@@ -291,6 +363,7 @@ urls = [
     (re.compile(r'^/*$'), index),
     (_totals_json_re, totals_json),
     (_summary_json_re, summary_json),
+    (_max_used_json_re, max_used),
     (_site_summary_json_re, site_summary_json),
     (_site_totals_json_re, site_totals_json),
     (_site_request_summary_json_re, site_request_summary_json),
@@ -299,8 +372,13 @@ urls = [
     (_request_site_summary_json_re, request_site_summary_json),
     #(re.compile(r'^graphs/([-_A-Za-z0-9]+)/prio/?$'), request_prio_graph),
     (_site_graph_re, site_graph),
+    (_site_graph_util_re, site_graph_util),
     (_summary_graph_re, summary_graph),
     (_request_starvation_graph_re, request_starvation_graph),
+    (_request_held_graph_re, request_held_graph),
+    (_request_idle_graph_re, request_idle_graph),
+    (_request_joint_graph_re, request_joint_graph),
+    (_pilot_graph_re, pilot_graph_use),
     (_request_graph_re, request_graph),
     (_request_site_graph_re, request_site_graph),
     (_subtask_graph_re, subtask_graph),

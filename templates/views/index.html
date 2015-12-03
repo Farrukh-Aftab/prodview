@@ -1,14 +1,19 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:py="http://genshi.edgewall.org/">
+<!DOCTYPE html>
+<html xmlns="http://www.w3.orgoogle-visualization-table-tableg/1999/xhtml" xmlns:py="http://genshi.edgewall.org/">
     <head>
         <title>
             CMS Production Overview
         </title>
-        <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js" type="text/javascript"></script>
-        <link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.0/css/bootstrap-combined.min.css" rel="stylesheet" type="text/css" />
-        <script src="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.0/js/bootstrap.min.js" type="text/javascript"></script>
+        <script src="/jquery.min.js" type="text/javascript"></script>
+        <!-- Latest compiled and minified CSS -->
+        <link rel="stylesheet" href="/bootstrap.css"/>
+        <!-- Optional theme -->
+        <link rel="stylesheet" href="/bootstrap.min.css"/>
+        <!-- Latest compiled and minified JavaScript -->
+        <script src="/bootstrap.min.js"></script>
+
         <script type='text/javascript' src='https://www.google.com/jsapi'></script>
+        <meta name="viewport" content="width=device-width, initial-scale=1"/>
         <script type='text/javascript'>
 //<![CDATA[
         google.load('visualization', '1', {packages:['table', 'controls']});
@@ -23,38 +28,43 @@
             if (currentview == "/prodview/"){
                 document.title = "CMS Production Overview";
                 document.getElementById("pagetitle").innerHTML = "Summary of production";
-                document.getElementById("brand").innerHTML = "Production Overview";
+                document.getElementById("navbar-brand").innerHTML = "Production Overview";
                 }
             else if (currentview == "/analysisview/"){
                 document.title = "CMS Analysis Overview";
                 document.getElementById("pagetitle").innerHTML = "Summary of analysis";
-                document.getElementById("brand").innerHTML = "Analysis Overview";
+                document.getElementById("navbar-brand").innerHTML = "Analysis Overview";
                 }
             else if (currentview == "/analysiscrab2view/"){
                 document.title = "CMS Analysis Overview (CRAB2)";
                 document.getElementById("pagetitle").innerHTML = "Summary of analysis";
-                document.getElementById("brand").innerHTML = "Analysis Overview (CRAB2)";
+                document.getElementById("navbar-brand").innerHTML = "Analysis Overview (CRAB2)";
             }
             else if (currentview == "/totalview/"){
                 document.getElementById("pagetitle").innerHTML = "";
-                document.getElementById("brand").innerHTML = "Total Overview";
+                document.getElementById("navbar-brand").innerHTML = "Total Overview";
             }
             else if (currentview == "/scheddview/"){
                 document.getElementById("pagetitle").innerHTML = "Scheduler Overview";
                 document.getElementById("sitetitle").innerHTML = "";
                 document.getElementById("top_summary").style.display = 'none';
-                document.getElementById("brand").innerHTML = "Scheduler Overview";
+                document.getElementById("navbar-brand").innerHTML = "Scheduler Overview";
+            }
+            else if (currentview == "/factoryview/"){
+                document.getElementById("pagetitle").innerHTML = "Factory Overview";
+                document.getElementById("sitetitle").innerHTML = "";
+                document.getElementById("navbar-brand").innerHTML = "Factory Overview";
             }
 
-            // currentview will be /analysisview/ or /prodview/ or /analysiscrab2view/ or /totalview/ or /scheddview/
+            // currentview will be /analysisview/ or /prodview/ or /analysiscrab2view/ or /totalview/ or /scheddview/ or /factoryview/
 
             // First, get the CMS-wide totals
-            if (currentview !== "/scheddview/"){
+            if (currentview !== "/scheddview/" && currentview !== "/factoryview/"){
                 $.get(currentview.concat('/json/totals'), function(data){
                     gotTotals(data, currentview)});
             }
             // Next get the workflow summaries
-            if (currentview != "/totalview/"){
+            if (currentview != "/totalview/" && currentview !== "/factoryview/"){
                 if (currentview != "/scheddview/"){
                     $.get(currentview.concat('/json/summary'), function(data){
                         gotSummary(data, currentview)});
@@ -62,17 +72,80 @@
                 else {
                     $.get(currentview.concat('/json/summary'), function(data){
                         gotSummarySchedd(data, currentview)});
-		}
+		        }
             }
 
             // Finally, get the site summaries
-            if (currentview !== "/scheddview/"){
+            if (currentview !== "/scheddview/" && currentview !== "/factoryview/"){
                 $.get(currentview.concat('/json/site_summary'), function(data){
                     gotSiteSummary(data, currentview)});
+            }
+            // This is new implementation which should be done.
+            // Currently there is too many if this do this if this view do this.
+            // Separating function will make more code, but it will be more easily readable
+            if (currentview == "/factoryview/"){
+                $.get(currentview.concat('/json/totals'), function(data){
+                   gotTotalsFactory(data, currentview)});
             }
             
         }
 
+        //
+        // FUNCTIONS FOR factoryview
+        //
+        function gotTotalsFactory(data, currentview){
+          drawPoolStatsImgs(currentview);
+          $('#overall_stats_table').detach();
+          pool_stats_table = $("<table></table>");
+          pool_stats_table.addClass("table");
+          pool_stats_table.attr('id', 'overall_stats_table');
+          pool_stats_table.append("<tr><th>Errors</th><td>" + data.Summary.Errors + "</td></tr>");
+          pool_stats_table.append("<tr><th>Warnings</th><td>" + data.Summary.Warnings + "</td></tr>");
+          pool_stats_table.append("<tr><th>Running Pilots</th><td>" + data.Summary.Run + "</td></tr>");
+          pool_stats_table.append("<tr><th>Idle Pilots/Total Idle</th><td>" + data.Summary.Idle + " / " + data.Summary.MIdle + "</td></tr>");
+          pool_stats_table.append("<tr><th>Held Pilots/Total Held</th><td>" + data.Summary.Held + " / " + data.Summary.MHeld + "</td></tr>");
+          $("#request_slots_table").append(pool_stats_table);
+
+          var table_data = new google.visualization.DataTable();
+          table_data.addColumn("string", "Site");
+          table_data.addColumn("number", "Errors");
+          table_data.addColumn("number", "Warnings");
+          table_data.addColumn("number", "Running");
+          table_data.addColumn("number", "Idle");
+          table_data.addColumn("number", "Held");
+          table_data.addColumn("string", "Siteview status");
+          table_data.addColumn("string", "Idle status");
+          table_data.addColumn("string", 'Held status');
+
+          for (key in data) {
+              if (key !== 'Summary' && key !== 'Errors'){
+                  sdata = data[key].Summary;
+                  var image_html = '<img src="/factoryview/graphs/' + key + '"/>';
+                  var shtml = '<a href="/factoryview/' + key + '">' + key + '</a>';
+                  var siteview = '<img src="/factoryview/graphs/' + key + '/joint"/>';  
+                  var idleview = '<img src="/factoryview/graphs/' + key + '/idle"/>';
+                  var heldview = '<img src="/factoryview/graphs/' + key + '/held"/>';
+                  table_data.addRow([shtml, sdata.Errors, sdata.Warnings, sdata.Run, sdata.Idle, sdata.Held, siteview, idleview, heldview]);
+              }}
+          var dashboard = new google.visualization.Dashboard(document.getElementById('running_workflows'));
+          var table = new google.visualization.ChartWrapper({
+                        chartType: 'Table',
+                        containerId: 'running_workflows_table',
+                        options: {sortColumn: 1, sortAscending: false, allowHtml: true, page: 'enable', cssClassNames: {headerRow: '1', tableRow: '1', oddTableRow: '1', selectedTableRow: '1', hoverTableRow: '1', headerCell: '1', tableCell: '1', rowNumberCell: '1'}}
+                    });
+          var control = new google.visualization.ControlWrapper({
+                        controlType: 'StringFilter',
+                        containerId: 'running_workflows_control',
+                        options: {filterColumnIndex: 0, matchType: 'any'}
+                    });
+          dashboard.bind([control], [table]);
+          // I hate google table class. Sorry ;)
+          google.visualization.events.addListener(table, 'ready', function(){
+              $(".google-visualization-table-table").attr('class', 'table-bordered table-hover table-condensed table-striped');
+          });
+          dashboard.draw(table_data);
+        }
+        // TODO: Replace someday all this code below with these if`s!
         function gotSummarySchedd(data, currentview) {
         var table_data = new google.visualization.DataTable();
         table_data.addColumn("string", "Name");
@@ -107,7 +180,7 @@
         var table = new google.visualization.ChartWrapper({
             chartType: 'Table',
             containerId: 'sites_summary_table',
-            options: {sortColumn: 1, sortAscending: false, allowHtml: true}
+            options: {sortColumn: 1, sortAscending: false, allowHtml: true, cssClassNames: {headerRow: '1', tableRow: '1', oddTableRow: '1', selectedTableRow: '1', hoverTableRow: '1', headerCell: '1', tableCell: '1', rowNumberCell: '1'}}
         });
         var control = new google.visualization.ControlWrapper({
             controlType: 'StringFilter',
@@ -115,6 +188,10 @@
             options: {filterColumnIndex: 0, matchType: 'any'}
         });
         dashboard.bind([control], [table]);
+        // I hate google table class. Sorry ;)
+        google.visualization.events.addListener(table, 'ready', function(){
+        $(".google-visualization-table-table").attr('class', 'table-bordered table-hover table-condensed table-striped');
+        });
         dashboard.draw(table_data);
         }
 
@@ -155,7 +232,7 @@
             var table = new google.visualization.ChartWrapper({
                 chartType: 'Table',
                 containerId: 'running_workflows_table',
-                options: {sortColumn: 1, sortAscending: false, allowHtml: true, page: 'enable'}
+                options: {sortColumn: 1, sortAscending: false, allowHtml: true, page: 'enable', cssClassNames: {headerRow: '1', tableRow: '1', oddTableRow: '1', selectedTableRow: '1', hoverTableRow: '1', headerCell: '1', tableCell: '1', rowNumberCell: '1'}}
             });
             var control = new google.visualization.ControlWrapper({
                 controlType: 'StringFilter',
@@ -164,6 +241,10 @@
             });
 
             dashboard.bind([control], [table]);
+            google.visualization.events.addListener(table, 'ready', function(){
+               $(".google-visualization-table-table").attr('class', 'table-bordered table-hover table-condensed table-striped');
+             });
+
             dashboard.draw(table_data);
         }
 
@@ -177,26 +258,28 @@
                 table_data.addColumn("number", "Workflow Count");
             else if (currentview == "/analysisview/" || currentview == "/analysiscrab2view/")
                 table_data.addColumn("number", "User Count");
+            table_data.addColumn("string", "Max Running Achieved");
             table_data.addColumn("string", "Site History");
             if (currentview == "/totalview/"){
                  table_data.addColumn("string", "Production History");
-                 table_data.addColumn("string", "Analysis History");
-                 table_data.addColumn("string", "Analysis(CRAB2) History");
+                 table_data.addColumn("string", "CRAB3 History");
+                 table_data.addColumn("string", "CRAB2 History");
             }
 
 
 
             for (site_key in data) {
                 site = data[site_key];
+                var util_img = '<img src="/totalview/graphs/' + site_key + '/utilization/hourly"/>';
                 var site_img = '<img src="'+ currentview +'graphs/' + site_key + '"/>';
                 var site_html = '<a href="' + currentview + site_key + '"/>' + site_key + '</a>';
                 if (currentview != "/totalview/")
-                    table_data.addRow([site_html, site.Running, site.MatchingIdle, site.RequestCount, site_img]);
+                    table_data.addRow([site_html, site.Running, site.MatchingIdle, site.RequestCount, util_img, site_img]);
                 else{
                     var prod_img = '<img src="/prodview/graphs/' + site_key + '"/>';
                     var anal_img = '<img src="/analysisview/graphs/' + site_key + '"/>';
                     var acr2_img = '<img src="/analysiscrab2view/graphs/' + site_key + '"/>';
-                    table_data.addRow([site_html, site.Running, site.MatchingIdle, site_img, prod_img, anal_img, acr2_img]);
+                    table_data.addRow([site_html, site.Running, site.MatchingIdle, util_img, site_img, prod_img, anal_img, acr2_img]);
                 }
             }
 
@@ -204,7 +287,7 @@
             var table = new google.visualization.ChartWrapper({
                 chartType: 'Table',
                 containerId: 'sites_summary_table',
-                options: {sortColumn: 0, sortAscending: true, allowHtml: true, page: 'enable', pageSize: 20}
+               options: {sortColumn: 0, sortAscending: true, allowHtml: true, page: 'enable', pageSize: 20, cssClassNames: {headerRow: '1', tableRow: '1', oddTableRow: '1', selectedTableRow: '1', hoverTableRow: '1', headerCell: '1', tableCell: '1', rowNumberCell: '1'}}
             });
             var control = new google.visualization.ControlWrapper({
                 controlType: 'StringFilter',
@@ -213,6 +296,10 @@
             });
 
             dashboard.bind([control], [table]);
+            google.visualization.events.addListener(table, 'ready', function(){
+              $(".google-visualization-table-table").attr('class', 'table-bordered table-hover table-condensed table-striped');
+            });
+
             dashboard.draw(table_data);
 
             // Reset the reload button
@@ -267,7 +354,7 @@
         function drawPoolStatsProd() {
             $('#overall_stats_table').detach();
             pool_stats_table = $("<table></table>");
-            pool_stats_table.addClass("table");
+            pool_stats_table.addClass("table table-nonfluid");
             pool_stats_table.attr('id', 'overall_stats_table');
             pool_stats_table.append("<tr><th>Running Jobs</th><th>Idle Jobs</th><th>Workflow Count</th><th>Last Data Update</th>");
             pool_stats_table.append("<tr><td>" + pool_stats.Running + "</td><td>" + pool_stats.Idle + "</td><td>" + pool_stats.RequestCount + "</td><td>" + pool_stats.UpdateDate.toLocaleString() + "</td></tr>");
@@ -277,29 +364,29 @@
         function drawPoolStatsAna() {
             $('#overall_stats_table').detach();
             pool_stats_table = $("<table></table>");
-            pool_stats_table.addClass("table");
+            pool_stats_table.addClass("table table-nonfluid");
             pool_stats_table.attr('id', 'overall_stats_table');
-            pool_stats_table.append("<tr><td>Idle Jobs</td><td>" + pool_stats.Idle + "</td></tr>");
-            pool_stats_table.append("<tr><td>Running Jobs</td><td>" + pool_stats.Running + "</td></tr>");
-            pool_stats_table.append("<tr><td>Not Queued Jobs</td><td>" + pool_stats.NotQueued + "</td></tr>");
-            pool_stats_table.append("<tr><td>User Count</td><td>" + pool_stats.RequestCount + "</td></tr>");
-            pool_stats_table.append("<tr><td>Tasks Running</td><td>" + pool_stats.TaskCountR + "</td></tr>");
-            pool_stats_table.append("<tr><td>Tasks Held</td><td>" + pool_stats.TaskCountH + "</td></tr>");
-            pool_stats_table.append("<tr><td>Update Time</td><td>" + pool_stats.UpdateDate.toLocaleString() + "</td></tr>");
+            pool_stats_table.append("<tr><th>Idle Jobs</th><td>" + pool_stats.Idle + "</td></tr>");
+            pool_stats_table.append("<tr><th>Running Jobs</th><td>" + pool_stats.Running + "</td></tr>");
+            pool_stats_table.append("<tr><th>Not Queued Jobs</th><td>" + pool_stats.NotQueued + "</td></tr>");
+            pool_stats_table.append("<tr><th>User Count</th><td>" + pool_stats.RequestCount + "</td></tr>");
+            pool_stats_table.append("<tr><th>Tasks Running</th><td>" + pool_stats.TaskCountR + "</td></tr>");
+            pool_stats_table.append("<tr><th>Tasks Held</th><td>" + pool_stats.TaskCountH + "</td></tr>");
+            pool_stats_table.append("<tr><th>Update Time</th><td>" + pool_stats.UpdateDate.toLocaleString() + "</td></tr>");
             $("#request_slots_table").append(pool_stats_table);
         }
 
         function drawPoolStatsTotal() {
             $('#overall_stats_table').detach();
             pool_stats_table = $("<table></table>");
-            pool_stats_table.addClass("table");
+            pool_stats_table.addClass("table table-nonfluid");
             pool_stats_table.attr('id', 'overall_stats_table');
-            pool_stats_table.append("<tr><td></td><td>Running</td><td>Idle</td><td>Tasks</td></tr>");
-            pool_stats_table.append("<tr><td>Total</td><td>" + pool_stats.TotalRunning + "</td><td>"+ pool_stats.TotalIdle +"</td><td>"+ pool_stats.TotalTRunning +"</td></tr>");
-            pool_stats_table.append("<tr><td>Production</td><td>" + pool_stats.ProdRunning + "</td><td>"+ pool_stats.ProdIdle +"</td><td>"+ pool_stats.ProdTRunning +"</td></tr>");
-            pool_stats_table.append("<tr><td>Analysis</td><td>" + pool_stats.AnalysisRunning + "</td><td>"+ pool_stats.AnalysisIdle +"</td><td>"+ pool_stats.AnalysisTRunning +"</td></tr>");
-            pool_stats_table.append("<tr><td>CRAB2</td><td>" + pool_stats.CRAB2Running + "</td><td>"+ pool_stats.CRAB2Idle +"</td><td>"+ pool_stats.CRAB2TRunning +"</td></tr>");
-            pool_stats_table.append("<tr><td>Update Time</td><td colspan=\"3\">" + pool_stats.UpdateDate.toLocaleString() + "</td></tr>");
+            pool_stats_table.append("<tr><th></th><th>Running</th><th>Idle</th><th>Tasks</th></tr>");
+            pool_stats_table.append("<tr><th>Total</th><td>" + pool_stats.TotalRunning + "</td><td>"+ pool_stats.TotalIdle +"</td><td>"+ pool_stats.TotalTRunning +"</td></tr>");
+            pool_stats_table.append("<tr><th>Production</th><td>" + pool_stats.ProdRunning + "</td><td>"+ pool_stats.ProdIdle +"</td><td>"+ pool_stats.ProdTRunning +"</td></tr>");
+            pool_stats_table.append("<tr><th>Analysis</th><td>" + pool_stats.AnalysisRunning + "</td><td>"+ pool_stats.AnalysisIdle +"</td><td>"+ pool_stats.AnalysisTRunning +"</td></tr>");
+            pool_stats_table.append("<tr><th>CRAB2</th><td>" + pool_stats.CRAB2Running + "</td><td>"+ pool_stats.CRAB2Idle +"</td><td>"+ pool_stats.CRAB2TRunning +"</td></tr>");
+            pool_stats_table.append("<tr><th>Update Time</th><td colspan=\"3\">" + pool_stats.UpdateDate.toLocaleString() + "</td></tr>");
             $("#request_slots_table").append(pool_stats_table);
 
         }
@@ -330,53 +417,53 @@
         </script>
     </head>
     <body>
-    <div class="navbar navbar-inverse navbar-fixed-top">
-      <div class="navbar-inner">
-        <div class="container-fluid">
-          <button data-target=".nav-collapse" data-toggle="collapse" class="btn btn-navbar" type="button">
+    <nav class="navbar navbar-default" role="navigation">
+         <div class="navbar-header">
+          <button data-target=".navbar-ex1-collapse" data-toggle="collapse" class="navbar-toggle" type="button">
+            <span class="sr-only">Toggle navigation</span>
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </button>
-          <a href="#" class="brand" id="brand">Production Overview</a>
-          <div class="nav-collapse collapse">
-            <ul class="nav">
+          <a href="/" class="navbar-brand" id="navbar-brand">GWMS Overview</a>
+         </div>
+          <div class="navbar-collapse collapse navbar-ex1-collapse">
+            <ul class="nav navbar-nav">
               <li><a href="/">Main Page</a></li>
               <li><a href="/totalview">Total Overview</a></li>
               <li><a href="/prodview">Production Overview</a></li>
               <li><a href="/analysisview">Analysis Overview</a></li>
               <li><a href="/analysiscrab2view">Analysis CRAB2 Overview</a></li>
               <li><a href="/scheddview">Schedd Overview</a></li>
-            </ul>
+              <li><a href="/factoryview">Factory Overview</a></li>
+          </ul>
           </div><!--/.nav-collapse -->
-        </div>
-      </div>
-    </div>
-       <div class="container-fluid" style="padding-top:60px">
-            <div class="row-fluid" id="top_summary">
-                <div class="span12">
-                    <div class="span3" style="padding-top:40px"><div id="request_slots_table"></div></div>
-                    <div class="span3">
-                    <div class="row-fluid">
+    </nav>
+       <div class="container-fluid">
+            <div class="row jumbotron" id="top_summary">
+                <div class="col-md-12">
+                    <div class="col-md-3" style="padding-top:40px"><div id="request_slots_table"></div></div>
+                    <div class="col-md-3">
+                    <div class="row">
                         <h2>Last Hour</h2>
                         <div id="pool_hourly_img"></div>
                     </div>
                     </div>
-                    <div class="span3">
-                    <div class="row-fluid">
+                    <div class="col-md-3">
+                    <div class="row">
                         <h2>Last Day</h2>
                         <div id="pool_daily_img"></div>
                     </div>
                     </div>
-                    <div class="span3">
-                    <div class="row-fluid">
+                    <div class="col-md-3">
+                    <div class="row">
                         <h2>Last Week</h2>
                         <div id="pool_weekly_img"></div>
                     </div></div></div>
             </div>
-            <div class="row-fluid">
-                <div class="span1"></div>
-                <div id="subtasks" class="span10">
+            <div class="row">
+                <div class="col-md-1"></div>
+                <div id="subtasks" class="col-md-12">
                     <h2 id="pagetitle">
                         Summary of production
                     </h2>
@@ -385,10 +472,10 @@
                         <div id="running_workflows_table"></div>
                     </div>
                 </div>
-                <div class="span1"></div>
+                <div class="col-md-1"></div>
             </div>
-            <div class="row-fluid">
-                <div id="sites" class="span12">
+            <div class="row">
+                <div id="sites" class="col-md-12">
                     <h2 id="sitetitle">
                         Site Summary
                     </h2>
@@ -400,4 +487,13 @@
             </div>
         </div>
     </body>
+  <script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-69774798-1', 'auto');
+  ga('send', 'pageview');
+  </script>
+
 </html>
